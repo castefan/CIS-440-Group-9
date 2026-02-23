@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Answer Questions</title>
+    <style>
+        body { font-family: Arial; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        .question-item { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 5px; background: #fafafa; }
+        .question-header { font-weight: bold; color: #0066cc; margin-bottom: 10px; }
+        .question-text { padding: 10px; background: white; border-left: 3px solid #0066cc; margin: 10px 0; }
+        .answer-form textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        .answer-form button { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 5px; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #0066cc; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+        <h1>Answer Follow-Up Questions</h1>
+        <div id="questions-container"><p style="text-align: center; color: #666;">Loading...</p></div>
+    </div>
+    <script>
+        async function loadQuestions() {
+            try {
+                const response = await fetch('/api/followup/unanswered/all');
+                const data = await response.json();
+                const container = document.getElementById('questions-container');
+                if (!data.success || data.data.length === 0) { container.innerHTML = '<p style="text-align: center; color: #666;">No unanswered questions.</p>'; return; }
+                container.innerHTML = data.data.map(q => `
+                    <div class="question-item">
+                        <div class="question-header">Question #${q.id} (Feedback #${q.feedbackId})</div>
+                        <div class="question-text">${q.question}</div>
+                        <small style="color: #666;">Asked: ${new Date(q.submittedAt).toLocaleString()}</small>
+                        <div class="answer-form">
+                            <textarea id="answer-${q.id}" rows="4" placeholder="Type your answer here..."></textarea>
+                            <button onclick="submitAnswer('${q.id}')">Submit Answer</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        async function submitAnswer(questionId) {
+            const answer = document.getElementById(`answer-${questionId}`).value;
+            if (!answer.trim()) { alert('Please enter an answer'); return; }
+            try {
+                const response = await fetch(`/api/followup/${questionId}/answer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer }) });
+                const data = await response.json();
+                if (data.success) { alert('Answer submitted!'); loadQuestions(); } else { alert('Error submitting answer'); }
+            } catch (error) { alert('Error submitting answer'); }
+        }
+
+        loadQuestions();
+    </script>
+</body>
+</html>

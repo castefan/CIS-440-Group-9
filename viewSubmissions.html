@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>View My Submissions</title>
+    <style>
+        body { font-family: Arial; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        .submission { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 5px; background: #fafafa; }
+        .submission-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .submission-id { font-weight: bold; color: #0066cc; }
+        .submission-content { padding: 10px; background: white; border-left: 3px solid #0066cc; margin: 10px 0; }
+        .submission-date { color: #666; font-size: 14px; }
+        .status { display: inline-block; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; }
+        .status.read { background: #d4edda; color: #155724; }
+        .status.unread { background: #fff3cd; color: #856404; }
+        .no-submissions { text-align: center; color: #666; padding: 40px; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #0066cc; text-decoration: none; }
+        .followup-section { margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6; }
+        .followup-header { font-weight: bold; margin-bottom: 10px; color: #333; }
+        .followup-question { padding: 10px; background: white; border-left: 3px solid #28a745; margin: 10px 0; }
+        .followup-answer { padding: 10px; background: #e7f3ff; border-left: 3px solid #0066cc; margin: 10px 0; }
+        .followup-form textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; resize: vertical; box-sizing: border-box; }
+        .followup-form button { background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-top: 5px; }
+        .toggle-followup { background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back</a>
+        <h1>View My Submissions</h1>
+        <div id="submissions-container"><div class="no-submissions">Loading...</div></div>
+    </div>
+    <script>
+        let employeeId = localStorage.getItem('employeeId');
+        if (!employeeId) { employeeId = 'emp' + Date.now(); localStorage.setItem('employeeId', employeeId); }
+
+        async function loadSubmissions() {
+            try {
+                const response = await fetch('/api/feedbacks');
+                const data = await response.json();
+                const container = document.getElementById('submissions-container');
+                if (!data.success || data.data.length === 0) { container.innerHTML = '<div class="no-submissions">No submissions yet.</div>'; return; }
+                const myFeedback = data.data.filter(f => f.employeeId === employeeId);
+                if (myFeedback.length === 0) { container.innerHTML = '<div class="no-submissions">You haven\'t submitted any feedback yet.</div>'; return; }
+                container.innerHTML = '';
+                for (const feedback of myFeedback) {
+                    const followUpQuestions = await loadFollowUpQuestions(feedback.id);
+                    container.innerHTML += createSubmissionHTML(feedback, followUpQuestions);
+                }
+            } catch (error) { document.getElementById('submissions-container').innerHTML = '<div class="no-submissions">Error loading submissions.</div>'; }
+        }
+
+        async function loadFollowUpQuestions(feedbackId) {
+            try { const response = await fetch(`/api/followup/${feedbackId}`); const data = await response.json(); return data.success ? data.data : []; }
+            catch (error) { return []; }
+        }
+
+        function createSubmissionHTML(feedback, followUpQuestions) {
+            return `<div class="submission"><div class="submission-header"><span class="submission-id">My Feedback #${feedback.id}</span><span class="status ${feedback.isRead ? 'read' : 'unread'}">${feedback.isRead ? 'Read by Manager' : 'Pending Review'}</span></div><div class="submission-content">${feedback.content}</div><div class="submission-date">Submitted: ${new Date(feedback.submittedAt).toLocaleString()}${feedback.isRead ? `<br>Read: ${new Date(feedback.readAt).toLocaleString()}` : ''}</div>${feedback.isRead ? `<button class="toggle-followup" onclick="toggleFollowUp('${feedback.id}')">Ask Follow-Up Question</button>` : ''}<div id="followup-${feedback.id}" class="followup-section" style="display: none;"><div class="followup-header">Follow-Up Questions</div>${followUpQuestions.map(q => `<div class="followup-question"><strong>Q:</strong> ${q.question}<br><small>Asked: ${new Date(q.submittedAt).toLocaleString()}</small></div>${q.isAnswered ? `<div class="followup-answer"><strong>A:</strong> ${q.answer}<br><small>Answered: ${new Date(q.answeredAt).toLocaleString()}</small></div>` : `<div style="padding: 10px; background: #fff3cd; margin: 10px 0; border-radius: 5px;"><small>Waiting for response...</small></div>`}`).join('')}<div class="followup-form"><textarea id="question-${feedback.id}" rows="3" placeholder="Ask a follow-up question..."></textarea><button onclick="submitFollowUp('${feedback.id}')">Submit Question</button></div></div></div>`;
+        }
+
+        function toggleFollowUp(feedbackId) {
+            const section = document.getElementById(`followup-${feedbackId}`);
+            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function submitFollowUp(feedbackId) {
+            const question = document.getElementById(`question-${feedbackId}`).value;
+            if (!question.trim()) { alert('Please enter a question'); return; }
+            try {
+                const response = await fetch('/api/followup/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feedbackId, question }) });
+                const data = await response.json();
+                if (data.success) { alert('Follow-up question submitted!'); loadSubmissions(); } else { alert('Error submitting question'); }
+            } catch (error) { alert('Error submitting question'); }
+        }
+
+        loadSubmissions();
+    </script>
+</body>
+</html>

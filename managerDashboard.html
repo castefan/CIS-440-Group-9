@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Manager Dashboard</title>
+    <style>
+        body { font-family: Arial; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        .nav-links { text-align: center; margin-bottom: 20px; }
+        .nav-links a { margin: 0 10px; color: #0066cc; text-decoration: none; padding: 10px 20px; border: 1px solid #0066cc; border-radius: 5px; }
+        .nav-links a:hover { background: #0066cc; color: white; }
+        .submission { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 5px; background: #fafafa; }
+        .submission-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .submission-id { font-weight: bold; color: #0066cc; }
+        .submission-content { padding: 10px; background: white; border-left: 3px solid #0066cc; margin: 10px 0; }
+        .submission-date { color: #666; font-size: 14px; }
+        .status { display: inline-block; padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; }
+        .status.read { background: #d4edda; color: #155724; }
+        .status.unread { background: #fff3cd; color: #856404; }
+        .mark-read-btn { background: #0066cc; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+        .mark-read-btn:hover { background: #0052a3; }
+        .no-submissions { text-align: center; color: #666; padding: 40px; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #0066cc; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Home</a>
+        <h1>Manager Dashboard</h1>
+        <div class="nav-links">
+            <a href="/dashboard">All Feedback</a>
+            <a href="/manager">Answer Questions</a>
+        </div>
+        <h2>All Feedback Submissions</h2>
+        <div id="submissions-container"><div class="no-submissions">Loading...</div></div>
+    </div>
+    <script>
+        async function loadSubmissions() {
+            try {
+                const response = await fetch('/api/feedbacks');
+                const data = await response.json();
+                const container = document.getElementById('submissions-container');
+                if (!data.success || data.data.length === 0) { container.innerHTML = '<div class="no-submissions">No submissions yet.</div>'; return; }
+                container.innerHTML = data.data.map(feedback => `
+                    <div class="submission">
+                        <div class="submission-header">
+                            <span class="submission-id">Feedback #${feedback.id}</span>
+                            <span class="status ${feedback.isRead ? 'read' : 'unread'}">${feedback.isRead ? 'Read' : 'Unread'}</span>
+                        </div>
+                        <div class="submission-content">${feedback.content}</div>
+                        <div class="submission-date">Submitted: ${new Date(feedback.submittedAt).toLocaleString()}${feedback.isRead ? `<br>Read: ${new Date(feedback.readAt).toLocaleString()}` : ''}</div>
+                        ${!feedback.isRead ? `<button class="mark-read-btn" onclick="markAsRead('${feedback.id}')">Mark as Read</button>` : ''}
+                    </div>
+                `).join('');
+            } catch (error) { document.getElementById('submissions-container').innerHTML = '<div class="no-submissions">Error loading submissions.</div>'; }
+        }
+
+        async function markAsRead(feedbackId) {
+            try {
+                const response = await fetch(`/api/feedback/${feedbackId}/mark-read`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                if (response.ok) { alert('Feedback marked as read! Employee notified.'); loadSubmissions(); }
+            } catch (error) { alert('Error marking as read'); }
+        }
+
+        loadSubmissions();
+    </script>
+</body>
+</html>
